@@ -224,7 +224,9 @@ function hiddenOverwrite () {
         stringToWrite = ''
       }
 
-      write.call(rl, stringToWrite)
+      if (argStringToWrite.charCodeAt(0) !== 13) {
+        write.call(rl, stringToWrite)
+      }
     }
   })(rl._writeToOutput)
 }
