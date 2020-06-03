@@ -11,7 +11,7 @@ const readline = require('readline')
 const stream = require('stream')
 const util = require('util')
 
-const myEmitter = new EventEmitter()
+let myEmitter = null
 
 let rl = null
 let stdoutMuted = false
@@ -23,31 +23,31 @@ const collection = {
   stderr: new stream.Writable()
 }
 
-function Serverline() {
+function Serverline () {
   return {
     init: init,
     secret: secret,
-    getPrompt: function() {
+    getPrompt: function () {
       return myPrompt
     },
-    isMuted: function() {
+    isMuted: function () {
       return stdoutMuted
     },
-    setCompletion: function(obj) {
+    setCompletion: function (obj) {
       completions = (typeof obj === 'object') ? obj : completions
     },
-    setMuted: function(enabled, msg) {
+    setMuted: function (enabled, msg) {
       stdoutMuted = !!enabled
 
       const message = (msg && typeof msg === 'string') ? msg : '> [hidden]'
       rl.setPrompt((!stdoutMuted) ? myPrompt : message)
       return stdoutMuted
     },
-    setPrompt: function(strPrompt) {
+    setPrompt: function (strPrompt) {
       myPrompt = strPrompt
       rl.setPrompt(myPrompt)
     },
-    on: function(eventName) {
+    on: function (eventName) {
       switch (eventName) {
         case 'line':
         case 'SIGINT':
@@ -57,33 +57,35 @@ function Serverline() {
 
       rl.on.apply(myEmitter, arguments)
     },
-    getRL: function() {
+    getRL: function () {
       return rl
     },
-    getHistory: function() {
+    getHistory: function () {
       return (rl.terminal) ? rl.history : []
     },
-    setHistory: function(history) {
+    setHistory: function (history) {
       if (rl.terminal && Array.isArray(history)) {
         rl.history = history
         return true
       }
       return !!rl.terminal
     },
-    question: function() {
+    question: function () {
       rl.question.apply(rl, arguments)
     },
-    pause: function() {
+    pause: function () {
       rl.pause()
     },
-    resume: function() {
+    resume: function () {
       rl.resume()
     },
-    close: function() {
+    close: function () {
       rl.close()
+      consoleReOverwrite()
+      myEmitter.removeAllListeners()
     },
-    _debugModuleSupport: function(debug) {
-      debug.log = function log() {
+    _debugModuleSupport: function (debug) {
+      debug.log = function log () {
         console.log(util.format.apply(util, arguments).toString())
       }
     }
@@ -94,7 +96,7 @@ module.exports = new Serverline()
 
 let fixSIGINTonQuestion = false
 
-function beforeTheLastLine(chunk) {
+function beforeTheLastLine (chunk) {
   const nbline = Math.ceil((rl.line.length + rl._prompt.length + 1) / rl.columns)
 
   let text = ''
@@ -105,7 +107,9 @@ function beforeTheLastLine(chunk) {
   return Buffer.from(text, 'utf8')
 }
 
-function init(options) {
+function init (options) {
+  myEmitter = new EventEmitter()
+
   if (typeof options === 'string') {
     options = { prompt: options } // eslint-disable-line no-param-reassign
   }
@@ -132,9 +136,9 @@ function init(options) {
     console.warn('You can try to define `options.forceTerminalContext = true`.')
   }
 
-  const consoleOptions = {}
+  const consoleOptions = {};
 
-  ;(['colorMode', 'inspectOptions', 'ignoreErrors']).forEach((val) => {
+  (['colorMode', 'inspectOptions', 'ignoreErrors']).forEach((val) => {
     if (typeof slOptions[val] !== 'undefined') {
       consoleOptions[val] = slOptions[val]
     }
@@ -143,7 +147,7 @@ function init(options) {
   consoleOverwrite(consoleOptions)
   hiddenOverwrite()
 
-  rl.on('line', function(line) {
+  rl.on('line', function (line) {
     if (!stdoutMuted && rl.history && rl.terminal) {
       rl.history.push(line)
     }
@@ -152,7 +156,7 @@ function init(options) {
       rl.prompt()
     }
   })
-  rl.on('SIGINT', function() {
+  rl.on('SIGINT', function () {
     fixSIGINTonQuestion = !!rl._questionCallback
     if (rl.terminal) {
       rl.line = ''
@@ -164,7 +168,7 @@ function init(options) {
   rl.prompt()
 
 
-  rl.input.on('data', function(char) { // fix CTRL+C on question
+  rl.input.on('data', function (char) { // fix CTRL+C on question
     if (char === '\u0003' && fixSIGINTonQuestion) {
       rl._onLine('')
       rl._refreshLine()
@@ -173,10 +177,10 @@ function init(options) {
   })
 }
 
-function secret(query, callback) {
+function secret (query, callback) {
   const toggleAfterAnswer = !stdoutMuted
   stdoutMuted = true
-  rl.question(query, function(value) {
+  rl.question(query, function (value) {
     if (rl.terminal) {
       rl.history = rl.history.slice(1)
     }
@@ -189,10 +193,10 @@ function secret(query, callback) {
   })
 }
 
-function hiddenOverwrite() {
-  rl._refreshLine = (function(refresh) {
+function hiddenOverwrite () {
+  rl._refreshLine = (function (refresh) {
     // https://github.com/nodejs/node/blob/v10.0.0/lib/readline.js#L326 && ./v9.5.0/lib/readline.js#L335
-    return function _refreshLine() {
+    return function _refreshLine () {
       let abc
       if (stdoutMuted && rl.line) {
         abc = rl.line
@@ -207,9 +211,9 @@ function hiddenOverwrite() {
     }
   })(rl._refreshLine)
 
-  rl._writeToOutput = (function(write) {
+  rl._writeToOutput = (function (write) {
     // https://github.com/nodejs/node/blob/v10.0.0/lib/readline.js#L289 && ./v9.5.0/lib/readline.js#L442
-    return function _writeToOutput(argStringToWrite) {
+    return function _writeToOutput (argStringToWrite) {
       let stringToWrite = argStringToWrite
 
       if (!stdoutMuted) {
@@ -225,15 +229,15 @@ function hiddenOverwrite() {
   })(rl._writeToOutput)
 }
 
-function consoleOverwrite(options) {
+function consoleOverwrite (options) {
   const original = {
     stdout: process.stdout,
     stderr: process.stderr
   }
 
   Object.keys(collection).forEach((name) => {
-    collection[name]._write = function(chunk, encoding, callback) {
-      // https://github.com/nodejs/node/blob/v10.0.0/lib/readline.js#L178
+    collection[name]._write = function (chunk, encoding, callback) {
+      // https://github.com/nodejs/node/blob/v10.0.0/lib/readline.js#L178 
       if (rl.terminal) {
         original[name].write(beforeTheLastLine(chunk), encoding, () => {
           rl._refreshLine()
@@ -250,12 +254,29 @@ function consoleOverwrite(options) {
     stdout: collection.stdout,
     stderr: collection.stderr
   }, options)
-  console = new Console(consoleOptions) // eslint-disable-line no-global-assign
+  console = new Console(consoleOptions) // eslint-disable-line no-global-assign 
   console.Console = Console
 }
 
-function completer(line) {
-  let hits = completions.filter(function(c) {
+let writeClone = process.stdout._write
+let writeErrorClone = process.stderr._write
+
+function consoleReOverwrite (options) {
+
+  process.stdout._write = writeClone
+  process.stderr._write = writeErrorClone
+
+  const Console = console.Console
+  const consoleOptions = Object.assign({}, {
+    stdout: process.stdout,
+    stderr: process.stderr
+  }, options)
+  console = new Console(consoleOptions) // eslint-disable-line no-global-assign 
+  console.Console = Console
+}
+
+function completer (line) {
+  let hits = completions.filter(function (c) {
     return c.indexOf(line) === 0
   })
 
